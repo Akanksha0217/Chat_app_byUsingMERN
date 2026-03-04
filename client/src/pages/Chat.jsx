@@ -1,7 +1,6 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import axios from "../utils/axios";
 import { socket } from "../socket/socket";
-import EmojiPicker from "emoji-picker-react";
 import { AuthContext } from "../context/AuthContext";
 
 export default function Chat() {
@@ -9,20 +8,31 @@ export default function Chat() {
 
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [currentChat, setCurrentChat] = useState(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState(false);
-  const [showEmoji, setShowEmoji] = useState(false);
 
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // SOCKET SETUP
   useEffect(() => {
     if (user?.user?._id) {
       socket.emit("setup", user.user._id);
     }
   }, [user]);
 
+  // RECEIVE MESSAGE
   useEffect(() => {
     socket.on("message received", (msg) => {
       setMessages((prev) => [...prev, msg]);
+    });
+
+    socket.on("user status changed", ({ userId, isOnline }) => {
+      setUsers((prev) =>
+        prev.map((u) => (u._id === userId ? { ...u, isOnline } : u)),
+      );
     });
 
     socket.on("typing", () => setTyping(true));
@@ -30,29 +40,62 @@ export default function Chat() {
 
     return () => {
       socket.off("message received");
+      socket.off("user status changed");
       socket.off("typing");
       socket.off("stop typing");
     };
   }, []);
 
+  // AUTO SCROLL
   useEffect(() => {
-    // fetch all users for sidebar
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // FETCH USERS
+  useEffect(() => {
     const fetchUsers = async () => {
-      const { data } = await axios.get("/auth/users");
+      const { data } = await axios.get("/auth/users", {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
       setUsers(data);
     };
-    fetchUsers();
-  }, []);
+    if (user?.token) fetchUsers();
+  }, [user]);
 
   if (!user) return null;
 
+  // OPEN CHAT
+  const openChat = async (u) => {
+    setSelectedUser(u);
+
+    const { data } = await axios.post(
+      "/chat",
+      { userId: u._id },
+      { headers: { Authorization: `Bearer ${user.token}` } },
+    );
+
+    setCurrentChat(data);
+
+    const messagesRes = await axios.get(`/message/${data._id}`, {
+      headers: { Authorization: `Bearer ${user.token}` },
+    });
+
+    setMessages(messagesRes.data);
+  };
+
+  // SEND MESSAGE
   const sendMessage = async () => {
-    if (!message || !selectedUser) return;
+    if (!message || !currentChat) return;
+
+    socket.emit("stop typing", currentChat._id);
 
     const { data } = await axios.post(
       "/message",
-      { content: message, receiverId: selectedUser._id },
-      { headers: { Authorization: `Bearer ${user.token}` } }
+      {
+        content: message,
+        chatId: currentChat._id,
+      },
+      { headers: { Authorization: `Bearer ${user.token}` } },
     );
 
     socket.emit("new message", data);
@@ -60,112 +103,172 @@ export default function Chat() {
     setMessage("");
   };
 
+  const handleTyping = (e) => {
+    setMessage(e.target.value);
+
+    if (!currentChat) return;
+
+    socket.emit("typing", currentChat._id);
+
+    setTimeout(() => {
+      socket.emit("stop typing", currentChat._id);
+    }, 1500);
+  };
+
+  // profile update
+  const handleImageClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const { data } = await axios.post("/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
+
+      await axios.put(
+        "/auth/update-profile",
+        { profilePic: data.url },
+        {
+          headers: { Authorization: `Bearer ${user.token}` },
+        },
+      );
+
+      alert("Profile picture updated!");
+      window.location.reload();
+    } catch (err) {
+      alert("Upload failed");
+    }
+  };
+
   return (
-    <div className="h-screen flex bg-gray-100 dark:bg-gray-900">
-
-      {/* LEFT SIDEBAR */}
-      <div className="w-1/3 bg-white dark:bg-gray-800 border-r flex flex-col">
-
-        {/* Profile Section */}
-        <div className="p-4 flex items-center space-x-3 border-b">
-          <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold">
-            {user.user.name[0]}
+    <div className="h-screen flex bg-gray-100">
+      {/* SIDEBAR */}
+      <div className="w-1/3 bg-white border-r flex flex-col shadow-lg">
+        {/* PROFILE */}
+        <div className="p-4 flex items-center space-x-3 border-b bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+          <div onClick={handleImageClick} className="cursor-pointer">
+            <img
+              src={user.user.profilePic || "/default.png"}
+              alt="profile"
+              className="w-12 h-12 rounded-full object-cover"
+            />
           </div>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+            className="hidden"
+            accept="image/*"
+          />
           <div>
-            <h3 className="font-semibold text-gray-800 dark:text-white">
-              {user.user.name}
-            </h3>
-            <p className="text-xs text-green-500">Online</p>
+            <h3 className="font-semibold">{user.user.name}</h3>
+            <p className="text-xs">
+              {user.user.isOnline ? "Online" : "Offline"}
+            </p>
           </div>
         </div>
 
-        {/* User List */}
+        {/* USERS LIST */}
         <div className="flex-1 overflow-y-auto">
           {users.map((u) => (
             <div
               key={u._id}
-              onClick={() => setSelectedUser(u)}
-              className={`flex items-center p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition ${
-                selectedUser?._id === u._id ? "bg-gray-200 dark:bg-gray-700" : ""
+              onClick={() => openChat(u)}
+              className={`flex items-center justify-between p-4 cursor-pointer hover:bg-gray-100 transition ${
+                selectedUser?._id === u._id ? "bg-gray-100" : ""
               }`}
             >
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white">
-                  {u.name[0]}
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <img
+                    src={u.profilePic || "/default.png"}
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+
+                  <span
+                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                      u.isOnline ? "bg-green-500" : "bg-gray-400"
+                    }`}
+                  ></span>
                 </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
-              </div>
-              <div className="ml-3">
-                <p className="font-medium text-gray-800 dark:text-white">
-                  {u.name}
-                </p>
-                <p className="text-xs text-gray-500">Click to chat</p>
+
+                <div>
+                  <p className="font-medium">{u.name}</p>
+                  <p className="text-xs text-gray-400">
+                    {u.isOnline
+                      ? "Online"
+                      : u.lastSeen
+                        ? `Last seen ${new Date(
+                            u.lastSeen,
+                          ).toLocaleTimeString()}`
+                        : "Offline"}
+                  </p>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* RIGHT CHAT AREA */}
+      {/* CHAT AREA */}
       <div className="flex-1 flex flex-col">
-
-        {/* Chat Header */}
         {selectedUser ? (
           <>
-            <div className="p-4 border-b bg-white dark:bg-gray-800 flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white">
-                {selectedUser.name[0]}
-              </div>
+            {/* HEADER */}
+            <div className="p-4 border-b bg-white flex items-center space-x-3 shadow-sm">
+              <img
+                src={selectedUser.profilePic || "/default.png"}
+                alt=""
+                className="w-10 h-10 rounded-full object-cover"
+              />
               <div>
-                <h3 className="font-semibold text-gray-800 dark:text-white">
-                  {selectedUser.name}
-                </h3>
-                <p className="text-xs text-green-500">Online</p>
+                <h3 className="font-semibold">{selectedUser.name}</h3>
+                <p className="text-xs text-gray-400">
+                  {typing ? "Typing..." : ""}
+                </p>
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* MESSAGES */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-gray-50">
               {messages.map((m) => (
                 <div
                   key={m._id}
-                  className={`max-w-xs px-4 py-2 rounded-2xl shadow ${
-                    m.sender === user.user._id
+                  className={`max-w-xs px-4 py-2 rounded-2xl shadow text-sm ${
+                    m.sender._id === user.user._id
                       ? "ml-auto bg-green-500 text-white"
-                      : "bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                      : "bg-white text-gray-800"
                   }`}
                 >
                   {m.content}
                 </div>
               ))}
-              {typing && (
-                <p className="text-sm text-gray-400">Typing...</p>
-              )}
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="p-3 bg-white dark:bg-gray-800 flex items-center">
-              <button
-                onClick={() => setShowEmoji(!showEmoji)}
-                className="text-xl mr-2"
-              >
-                😊
-              </button>
-
+            {/* INPUT */}
+            <div className="p-4 bg-white flex items-center border-t">
               <input
                 value={message}
-                onChange={(e) => {
-                  setMessage(e.target.value);
-                  socket.emit("typing", selectedUser._id);
-                }}
-                onBlur={() => socket.emit("stop typing", selectedUser._id)}
+                onChange={handleTyping}
                 className="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-green-400"
                 placeholder="Type a message..."
               />
-
               <button
                 onClick={sendMessage}
-                className="ml-3 px-4 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition"
+                className="ml-3 px-5 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition shadow-md"
               >
                 Send
               </button>

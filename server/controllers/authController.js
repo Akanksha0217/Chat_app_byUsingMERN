@@ -21,3 +21,43 @@ exports.login = async (req, res) => {
 
   res.json({ user, token });
 };
+
+
+// GET ALL USERS (except logged user)
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({
+      _id: { $ne: req.user.id },
+    }).select("-password");
+
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+};
+
+// GET SINGLE USER
+exports.getSingleUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching user" });
+  }
+};
+
+//updateProfile
+exports.updateProfile = async (req, res) => {
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    { profilePic: req.body.profilePic },
+    { new: true }
+  );
+
+  res.json(user);
+};

@@ -8,7 +8,11 @@ exports.sendMessage = async (req, res) => {
     fileUrl: req.body.fileUrl,
   });
 
-  res.json(message);
+  const fullMessage = await Message.findById(message._id)
+    .populate("sender", "name profilePic")
+    .populate("chat");
+
+  res.json(fullMessage);
 };
 
 exports.getMessages = async (req, res) => {
