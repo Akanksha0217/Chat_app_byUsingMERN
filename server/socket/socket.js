@@ -2,10 +2,9 @@ const User = require("../models/User");
 
 module.exports = (io) => {
   io.on("connection", (socket) => {
-
     // USER SETUP
     socket.on("setup", async (userId) => {
-      socket.userId = userId;   // ✅ store user id
+      socket.userId = userId; // ✅ store user id
       socket.join(userId);
 
       await User.findByIdAndUpdate(userId, {
@@ -17,6 +16,11 @@ module.exports = (io) => {
         userId,
         isOnline: true,
       });
+    });
+
+    // JOIN CHAT
+    socket.on("join chat", (room) => {
+      socket.join(room);
     });
 
     // TYPING
@@ -31,6 +35,16 @@ module.exports = (io) => {
     // NEW MESSAGE
     socket.on("new message", (msg) => {
       socket.to(msg.chat).emit("message received", msg);
+    });
+
+    // MESSAGE DELIVERED
+    socket.on("message delivered", ({ messageId, chatId }) => {
+      socket.to(chatId).emit("message delivered", messageId);
+    });
+
+    // MESSAGE SEEN
+    socket.on("message seen", ({ messageId, chatId }) => {
+      socket.to(chatId).emit("message seen", messageId);
     });
 
     // DISCONNECT

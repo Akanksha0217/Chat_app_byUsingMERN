@@ -4,30 +4,29 @@ import { AuthContext } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   const { user } = useContext(AuthContext);
 
   return (
-  
+    <>
       <Routes>
-
         {/* Default Route */}
-        <Route
-          path="/"
-          element={<Navigate to={user ? "/chat" : "/login"} />}
-        />
+        <Route path="/" element={<Navigate to={user ? "/chat" : "/login"} />} />
 
         <Route path="/login" element={<Login />} />
+
         <Route path="/register" element={<Register />} />
 
         <Route
           path="/chat"
           element={user ? <Chat /> : <Navigate to="/login" />}
         />
-
       </Routes>
- 
+      <ToastContainer position="top-right" autoClose={2000} />
+    </>
   );
 }
 

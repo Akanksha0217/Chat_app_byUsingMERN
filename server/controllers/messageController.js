@@ -16,8 +16,27 @@ exports.sendMessage = async (req, res) => {
 };
 
 exports.getMessages = async (req, res) => {
-  const messages = await Message.find({ chat: req.params.chatId })
-    .populate("sender", "name profilePic");
+  const messages = await Message.find({ chat: req.params.chatId }).populate(
+    "sender",
+    "name profilePic",
+  );
 
   res.json(messages);
+};
+
+//ticke
+exports.updateMessageStatus = async (req, res) => {
+  try {
+    const { messageId, status } = req.body;
+
+    const message = await Message.findByIdAndUpdate(
+      messageId,
+      { status },
+      { new: true },
+    );
+
+    res.json(message);
+  } catch (error) {
+    res.status(500).json({ error: "Status update failed" });
+  }
 };

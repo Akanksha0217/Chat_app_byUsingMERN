@@ -7,8 +7,13 @@ const messageSchema = new mongoose.Schema(
     chat: { type: mongoose.Schema.Types.ObjectId, ref: "Chat" },
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     fileUrl: String,
+    status: {
+      type: String,
+      enum: ["sent", "delivered", "seen"],
+      default: "sent",
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Message", messageSchema);
