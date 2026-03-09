@@ -1,10 +1,11 @@
 const User = require("../models/User");
+const Message = require("../models/Message");
 
 module.exports = (io) => {
   io.on("connection", (socket) => {
     // USER SETUP
     socket.on("setup", async (userId) => {
-      socket.userId = userId; // ✅ store user id
+      socket.userId = userId;
       socket.join(userId);
 
       await User.findByIdAndUpdate(userId, {
@@ -34,16 +35,24 @@ module.exports = (io) => {
 
     // NEW MESSAGE
     socket.on("new message", (msg) => {
-      socket.to(msg.chat).emit("message received", msg);
+      socket.to(msg.chat._id).emit("message received", msg);
     });
 
     // MESSAGE DELIVERED
-    socket.on("message delivered", ({ messageId, chatId }) => {
+    socket.on("message delivered", async ({ messageId, chatId }) => {
+      await Message.findByIdAndUpdate(messageId, {
+        status: "delivered",
+      });
+
       socket.to(chatId).emit("message delivered", messageId);
     });
 
     // MESSAGE SEEN
-    socket.on("message seen", ({ messageId, chatId }) => {
+    socket.on("message seen", async ({ messageId, chatId }) => {
+      await Message.findByIdAndUpdate(messageId, {
+        status: "seen",
+      });
+
       socket.to(chatId).emit("message seen", messageId);
     });
 

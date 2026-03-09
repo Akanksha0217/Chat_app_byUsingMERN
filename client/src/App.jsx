@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Chat from "./pages/Chat";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Profile from "./pages/Profile";
 
 function App() {
   const { user } = useContext(AuthContext);
@@ -24,6 +25,7 @@ function App() {
           path="/chat"
           element={user ? <Chat /> : <Navigate to="/login" />}
         />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
       <ToastContainer position="top-right" autoClose={2000} />
     </>

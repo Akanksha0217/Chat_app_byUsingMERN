@@ -22,7 +22,6 @@ exports.login = async (req, res) => {
   res.json({ user, token });
 };
 
-
 // GET ALL USERS (except logged user)
 exports.getAllUsers = async (req, res) => {
   try {
@@ -56,7 +55,7 @@ exports.updateProfile = async (req, res) => {
   const user = await User.findByIdAndUpdate(
     req.user.id,
     { profilePic: req.body.profilePic },
-    { new: true }
+    { new: true },
   );
 
   res.json(user);

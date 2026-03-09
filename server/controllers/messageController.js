@@ -6,6 +6,7 @@ exports.sendMessage = async (req, res) => {
     content: req.body.content,
     chat: req.body.chatId,
     fileUrl: req.body.fileUrl,
+    status: "sent",
   });
 
   const fullMessage = await Message.findById(message._id)
