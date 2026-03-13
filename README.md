@@ -35,7 +35,7 @@ The project demonstrates **full-stack development, REST API creation, authentica
 - Express.js
 
 ### Database
-- MongoDB (MongoDB Atlas)
+- MongoDB 
 
 ---
 
@@ -89,5 +89,3 @@ MERN Stack Developer
 - Push notifications
 
 ---
-
-
